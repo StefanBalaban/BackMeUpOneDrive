@@ -1,0 +1,57 @@
+version: '3.4'
+
+services:
+  backmeup.serviceworker:
+    build:
+      context: .
+      dockerfile: ServiceWorker/Dockerfile
+    environment:
+        - Cron:RunOnce=true
+        - Cron:Schedule=*/10 * * * * *
+        - FileStorage:NumberOfBackups=3
+        - Network:RateLimitInMiliseconds=200
+        - Network:Retries=3
+        - OneDrive:PageSizeInMegabytes=400
+        - Serilog:UseSerilog=true
+        - Serilog:Using:0=Serilog.Sinks.Console
+        - Serilog:Using:1=Serilog.Sinks.File
+        - Serilog:MinimumLevel=Information
+        - Serilog:WriteTo:0:Name=Console
+        - Serilog:WriteTo:0:Args:outputTemplate={Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] ({SourceContext}) {Message}{NewLine}{Exception}
+        - Serilog:WriteTo:1:Name=File
+        - Serilog:WriteTo:1:Args:path=Logs/log_.txt
+        - Serilog:WriteTo:1:Args:rollingInterval=Day
+        - Serilog:WriteTo:1:Args:outputTemplate={Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] ({SourceContext}) {Message}{NewLine}{Exception}
+        - Session:SessionGatewayUrl=http://backmeup.sessiongateway:7133/access-token
+        - Smb:BackupFolder=Backups
+        - Smb:Password=
+        - Smb:ShareName=
+        - Smb:StorageAddress=
+        - Smb:User=
+    networks:
+      - backmeup
+    links:
+      - backmeup.sessiongateway
+    depends_on:
+      - backmeup.sessiongateway
+  backmeup.sessiongateway:
+    build:
+      context: .
+      dockerfile: SessionGateway/Dockerfile
+    environment:
+        - Url=http://localhost:7133
+        - AllowedHosts=*
+        - Authentication:TenantId=Consumers
+        - Authentication:ClientId=
+        - Authentication:ClientSecret=
+        - Authentication:RedirectUri=http://localhost:7133/signin-oidc
+        - Authentication:RedirectEndpoint=/signin-oidc
+        - Authentication:Scope=user.read files.read files.read.all offline_access
+        - ASPNETCORE_URLS=http://+:7133
+    ports:
+      - 127.0.0.1:7133:7133
+    networks:
+      - backmeup
+networks:
+  backmeup:
+    driver: bridge
